@@ -2,6 +2,7 @@
 
 import { Formik, FormikHelpers } from 'formik';
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
 
 interface LoginValues {
   email: string;
@@ -25,13 +26,12 @@ interface LoginResponse {
 }
 
 export default function Login() {
+  const router = useRouter();
   const [loginResult, setLoginResult] = useState<LoginResponse | null>(null);
   const [error, setError] = useState<string | null>(null);
   
-  // URL desde variable de entorno - IMPORTANTE: NEXT_PUBLIC_ es necesario para cliente
   const APOLLO_SERVER_URL = process.env.NEXT_PUBLIC_APOLLO_URL || 'http://localhost:4000';
   
-  // Debug: Verificar que la variable se carga (solo en desarrollo)
   if (typeof window !== 'undefined' && process.env.NODE_ENV === 'development') {
     console.log('Apollo URL:', APOLLO_SERVER_URL);
   }
@@ -68,7 +68,6 @@ export default function Login() {
               return;
             }
             
-            // Mutación GraphQL para login
             const mutation = {
               query: `
                 mutation Login($email: String!, $password: String!) {
@@ -93,7 +92,6 @@ export default function Login() {
               }
             };
             
-            // Enviar petición a Apollo Server
             const response = await fetch(APOLLO_SERVER_URL, {
               method: 'POST',
               headers: {
@@ -102,7 +100,6 @@ export default function Login() {
               body: JSON.stringify(mutation),
             });
             
-            // Verificar respuesta HTTP
             if (!response.ok) {
               throw new Error(`Error HTTP: ${response.status}`);
             }
@@ -112,12 +109,19 @@ export default function Login() {
             if (result.errors) {
               setError(result.errors[0].message);
             } else if (result.data?.autenticarUsuario) {
-              setLoginResult(result.data.autenticarUsuario);
-              localStorage.setItem('auth_token', result.data.autenticarUsuario.token);
-              localStorage.setItem('user', JSON.stringify(result.data.autenticarUsuario.usuario));
+              const authData = result.data.autenticarUsuario;
+              setLoginResult(authData);
               
-              alert(`✅ Login exitoso!`);
+              // Guardar en localStorage
+              localStorage.setItem('auth_token', authData.token);
+              localStorage.setItem('user', JSON.stringify(authData.usuario));
+              
+              // Resetear formulario
               resetForm();
+              
+              // Redirigir inmediatamente al dashboard
+              router.push('/dashboard');
+              
             } else {
               setError('Error desconocido');
             }
@@ -125,7 +129,6 @@ export default function Login() {
           } catch (err: unknown) {
             console.error('Error en login:', err);
             
-            // Mensajes de error más específicos
             if (err instanceof Error) {
               if (err.message.includes('Failed to fetch') || err.message.includes('NetworkError')) {
                 setError(`No se pudo conectar al servidor: ${APOLLO_SERVER_URL}`);
@@ -197,9 +200,24 @@ export default function Login() {
               >
                 {isSubmitting ? 'Enviando...' : 'Iniciar Sesión'}
               </button>
+              
+              <button 
+                type="button"
+                onClick={() => router.push('/')}
+                style={{ 
+                  padding: '10px', 
+                  backgroundColor: '#666', 
+                  color: 'white', 
+                  border: 'none', 
+                  borderRadius: '4px',
+                  cursor: 'pointer',
+                  marginTop: '10px'
+                }}
+              >
+                ← Volver al Home
+              </button>
             </form>
             
-            {/* Mostrar resultado del login */}
             {error && (
               <div style={{ 
                 marginTop: '20px', 
@@ -209,6 +227,19 @@ export default function Login() {
                 borderRadius: '4px'
               }}>
                 ❌ Error: {error}
+              </div>
+            )}
+            
+            {loginResult && (
+              <div style={{ 
+                marginTop: '20px', 
+                padding: '15px', 
+                backgroundColor: '#e8f5e9', 
+                color: '#2e7d32',
+                borderRadius: '4px',
+                textAlign: 'center'
+              }}>
+                <p>✅ Login exitoso! Redirigiendo...</p>
               </div>
             )}
           </>
